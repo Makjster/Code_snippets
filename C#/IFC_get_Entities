@@ -1,0 +1,144 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Xbim.Ifc;
+
+namespace FirstProgram
+{
+    {
+        static void Main(string[] args)
+        {
+            const string file = "Test.txt";
+            const string FileName = "FuE.ifc";
+            GetMaterial(FileName);
+            Console.ReadKey();
+            
+
+            //check if file already extsits, if so delete the current one and create a new file
+            //if not, create it
+            if (File.Exists(file))
+            {
+                File.Delete(file);
+                File.Create(file).Dispose();
+            }
+            else
+            {
+                File.Create(file).Dispose();
+            }
+
+            static void GetMaterial(string fileName)
+            {
+                // Import Ifc File
+                using (IfcStore model = IfcStore.Open(FileName))
+                {
+                    using (var txn = model.BeginTransaction())
+                    {
+                       using (StreamWriter fs = File.CreateText(file))
+                            {
+                                Console.WriteLine("Starting to write");
+                                Console.WriteLine("Writing");
+
+                       
+                                /// Declare interfaces
+                                var quant = model.Instances.OfType<Xbim.Ifc4.Interfaces.IIfcElementQuantity>();
+                                var walls = model.Instances.OfType<Xbim.Ifc4.Interfaces.IIfcBuildingElement>();
+                                var relDefines = model.Instances.OfType<Xbim.Ifc4.Interfaces.IIfcRelDefinesByProperties>();
+
+                                var area = model.Instances.OfType<Xbim.Ifc4.Interfaces.IIfcQuantityArea>();
+                                var weight = model.Instances.OfType<Xbim.Ifc4.Interfaces.IIfcQuantityWeight>();
+                                var length = model.Instances.OfType<Xbim.Ifc4.Interfaces.IIfcQuantityLength>();
+                                var volume = model.Instances.OfType<Xbim.Ifc4.Interfaces.IIfcQuantityVolume>();
+
+
+                                /// Declare the lists with have alle BuildingElements and the ElementQuantities
+                                List<Xbim.Ifc4.Interfaces.IIfcBuildingElement> output = new List<Xbim.Ifc4.Interfaces.IIfcBuildingElement>();
+                                List<Xbim.Ifc4.Interfaces.IIfcElementQuantity> outputQuant = new List<Xbim.Ifc4.Interfaces.IIfcElementQuantity>();
+
+
+                                foreach (var s in walls)
+                                {
+                                    output.Add(s);
+                                }
+
+                                foreach (var s in quant)
+                                {
+                                    outputQuant.Add(s);
+                                }
+
+                            ///
+                            /// Main Part of the program:
+                            /// First we check if the IfcElementQuantity which is referenced by IfcRelDefinesByProperties is not zero
+                            /// If true, we select all Entity Labels of the relating Objects => the elements and also the releating property definitions entity labels
+                            /// 
+                            /// Then we check if the Relating Object Entity Label is in the List of Elemnts (s.a)
+                            /// If we have a match, we do the same with the releating property definitions entity labels
+                            /// If we have a match, we take the corresponding Quantities form the relating property definitions and put them in a list
+                            /// 
+                            /// The last step is to check if the corresponding entity labels of these are in respective Interfaces (Weight, Length and Volume)
+                            ///
+                            foreach (var rel in relDefines)
+                                {
+                                    if (rel.RelatingPropertyDefinition.PropertySetDefinitions.Where(e => e.ExpressType.ToString().Equals("IfcElementQuantity")).ToList().Count() == 1)
+                                    {
+                                        var mate = rel.RelatedObjects.Select(d => d.EntityLabel).ToList()[0];
+                                        var quanti = rel.RelatingPropertyDefinition.PropertySetDefinitions.Select(e => e.EntityLabel).ToList()[0];
+                                        foreach (var y in output)
+                                        {
+                                            if (mate.Equals(y.EntityLabel))
+                                            {
+                                                var tempMat = y;
+
+                                                foreach (var r in outputQuant)
+                                                {
+                                                    if (quanti.Equals(r.EntityLabel))
+                                                    {
+                                                        var tempQuant = r.Quantities.ToList();
+                                                        fs.WriteLine("Modelname: {0}, GlobalId: {1}", y.Name, y.GlobalId);
+
+                                                        foreach (var i in tempQuant)
+                                                        {
+
+                                                            /*foreach (var a in area)
+                                                            {
+                                                                if (i.EntityLabel.Equals(a.EntityLabel)) ;
+                                                                {
+                                                                    Console.WriteLine("{0}: {1}",a.Name, a.AreaValue);
+                                                                }
+                                                            }*/
+                                                            foreach (var w in weight)
+                                                            {
+                                                                if (i.EntityLabel.Equals(w.EntityLabel))
+                                                                {
+                                                                    fs.WriteLine("{0}: {1}", w.Name, w.WeightValue);
+                                                                }
+                                                            }
+                                                            foreach (var l in length)
+                                                            {
+                                                                if (i.EntityLabel.Equals(l.EntityLabel))
+                                                                {
+                                                                    fs.WriteLine("{0}: {1}", l.Name, l.LengthValue);
+                                                                }
+                                                            }
+                                                            foreach (var v in volume)
+                                                            {
+                                                                if (i.EntityLabel.Equals(v.EntityLabel))
+                                                                {
+                                                                    fs.WriteLine("{0}: {1}", v.Name, v.VolumeValue);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Console.WriteLine("Finished");
+                        }
+                    }
+                }
+            }
+        }
+    }
